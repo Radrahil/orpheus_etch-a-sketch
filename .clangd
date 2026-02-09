@@ -1,0 +1,17 @@
+CompileFlags:
+  Add:
+    - --target=arm-none-eabi
+    - -stdlib=libstdc++
+    - -U__clang__
+    - -D__GNUC__=12
+    - -D__ARM_ARCH_6M__
+    - -D__ARM_ARCH=6
+    - -isystem
+    - /home/rahil/.platformio/packages/toolchain-gccarmnoneeabi/arm-none-eabi/include/c++/9.2.1
+    - -isystem
+    - /home/rahil/.platformio/packages/toolchain-gccarmnoneeabi/arm-none-eabi/include/c++/9.2.1/arm-none-eabi
+    - -isystem
+    - /home/rahil/.platformio/packages/toolchain-gccarmnoneeabi/arm-none-eabi/include
+  Remove:
+    - -nostdlib
+    - -nostdsysteminc

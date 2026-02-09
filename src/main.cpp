@@ -1,12 +1,11 @@
 /**
- * Simple test program for Orpheus Pico - tests all functions of Sprig.
+ * Etch-a-Sketch for Orpheus Pico
  */
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <Arduino.h>
 #include <FastLED.h>
-#include <map>
 
 #define RST 26
 #define TFT_CS 20
@@ -28,40 +27,53 @@
 #define LED_USR p23
 #define LED_PIXEL p24
 
-#define NUM_COLORS 7
+// Drawing settings
+#define DRAW_COLOR ST7735_WHITE
+#define CURSOR_COLOR ST7735_RED
+#define BG_COLOR ST7735_BLACK
+#define DOT_SIZE 2   // Size of drawing dot (2x2 pixels)
+#define MOVE_SPEED 2 // Pixels to move per button press
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, DC, MOSI, SCK, RST);
-
 CRGB pixel[1];
 
-std::map<PinName, bool> lastVal;
+// Cursor position
+int cursorX = 80;
+int cursorY = 64;
 
-long lastUpdate = 1;
-long lastLEDUpdate = 0;
+// Drawing state
+bool isDrawing = true; // Start in drawing mode
 
-const char *LEDNames[] = {"RED    ", "ORANGE ", "YELLOW ", "GREEN  ",
-                          "BLUE   ", "MAGENTA", "WHITE  "};
+// Button debouncing
+unsigned long lastMoveTime = 0;
+unsigned long moveDelay = 50; // ms between moves
 
-uint16_t LEDScreenColors[] = {ST7735_RED,   ST7735_ORANGE, ST7735_YELLOW,
-                              ST7735_GREEN, ST7735_BLUE,   ST7735_MAGENTA,
-                              ST7735_WHITE};
+// Screen bounds (adjusted for rotation 3: landscape)
+const int MIN_X = 1;
+const int MAX_X = 158;
+const int MIN_Y = 1;
+const int MAX_Y = 126;
 
-CRGB LEDPixelColors[] = {CRGB::Red,  CRGB::Orange,  CRGB::Yellow, CRGB::Green,
-                         CRGB::Blue, CRGB::Magenta, CRGB::White};
-
-uint16_t currentLED = 0;
-
-void initialPrint(void);
-void LEDCycle(void);
+void updateLEDStatus() {
+  if (isDrawing) {
+    pixel[0] = CRGB::Green;
+    digitalWrite(LED_USR, HIGH);
+  } else {
+    pixel[0] = CRGB::Red;
+    digitalWrite(LED_USR, LOW);
+  }
+  FastLED.show();
+}
 
 void setup(void) {
   Serial.begin(9600);
-  Serial.print(F("Orpheus Pico quicktest!"));
-  Serial.print(PICO_FLASH_SIZE_BYTES);
+  Serial.println(F("Etch-a-Sketch Starting!"));
 
+  // Setup backlight
   pinMode(BL, OUTPUT);
   digitalWrite(BL, HIGH);
 
+  // Setup buttons
   pinMode(BTN_W, INPUT_PULLUP);
   pinMode(BTN_A, INPUT_PULLUP);
   pinMode(BTN_S, INPUT_PULLUP);
@@ -70,117 +82,134 @@ void setup(void) {
   pinMode(BTN_J, INPUT_PULLUP);
   pinMode(BTN_K, INPUT_PULLUP);
   pinMode(BTN_L, INPUT_PULLUP);
-
   pinMode(BTN_USR, INPUT_PULLDOWN);
+
   pinMode(LED_USR, OUTPUT);
 
+  // Setup RGB LED
   FastLED.addLeds<NEOPIXEL, LED_PIXEL>(pixel, 1);
 
+  // Initialize display
   tft.initR(INITR_BLACKTAB);
-  tft.setRotation(3);
-  Serial.println(F("Initialized display"));
+  tft.setRotation(3); // Landscape mode
 
-  tft.setTextWrap(false);
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setTextColor(ST77XX_RED);
+  // Clear screen and draw border
+  tft.fillScreen(BG_COLOR);
+  tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
 
-  initialPrint();
+  // Show initial instructions briefly
+  tft.setTextColor(ST7735_GREEN);
+  tft.setTextSize(1);
+  tft.setCursor(10, 10);
+  tft.print("WASD: Move");
+  tft.setCursor(10, 25);
+  tft.print("I: Toggle Draw");
+  tft.setCursor(10, 40);
+  tft.print("J: Clear");
+  tft.setCursor(10, 55);
+  tft.print("K: Change Color");
+
+  delay(2000);
+  tft.fillScreen(BG_COLOR);
+  tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
+
+  // Set LED to show drawing mode
+  updateLEDStatus();
+
+  Serial.println(F("Ready to draw!"));
 }
 
-void buttonIndicator(const char *text, PinName pin, int x, int y) {
-  // Get current val of pin
-  bool isPressed = digitalRead(pin);
-
-  // Switch pulled down pin vals
-  switch (pin) {
-  case BTN_USR:
-    break;
-  default:
-    isPressed = !isPressed;
+void drawDot(int x, int y, uint16_t color) {
+  // Draw a dot at the current position
+  if (DOT_SIZE == 1) {
+    tft.drawPixel(x, y, color);
+  } else {
+    tft.fillRect(x - DOT_SIZE / 2, y - DOT_SIZE / 2, DOT_SIZE, DOT_SIZE, color);
   }
-  // don't waste resources if value is unchanged
-  if (!lastVal.count(pin) || isPressed != lastVal[pin]) {
-    tft.setCursor(x, y);
-    if (isPressed)
-      tft.setTextColor(ST7735_GREEN, ST7735_BLACK);
-    else
-      tft.setTextColor(ST7735_RED, ST7735_BLACK);
-    tft.print(F(text));
+}
+
+void eraseCursor() {
+  // Erase old cursor position
+  drawDot(cursorX, cursorY, BG_COLOR);
+}
+
+void drawCursor() {
+  // Draw cursor at current position
+  drawDot(cursorX, cursorY, isDrawing ? DRAW_COLOR : CURSOR_COLOR);
+}
+
+bool buttonPressed(PinName pin) {
+  // Most buttons are pull-up (LOW when pressed)
+  if (pin == BTN_USR) {
+    return digitalRead(pin) == HIGH;
   }
-  lastVal[pin] = isPressed;
-}
-
-void initialPrint() {
-  // Label settings
-  tft.setTextColor(ST7735_WHITE);
-
-  tft.setCursor(5, 5);
-  tft.println("Orpheus Pico Quicktest :)");
-
-  tft.setCursor(5, 30);
-  tft.print("D-Pads");
-
-  tft.setCursor(5, 65);
-  tft.print("Orpheus Pico");
-
-  tft.setTextColor(ST7735_ORANGE);
-  tft.setCursor(5, 85);
-  tft.print("RGBLED: ");
-
-  tft.setCursor(5, 95);
-  tft.print("User LED: ");
-
-  tft.setTextColor(ST7735_CYAN);
-  tft.setCursor(5, 118);
-  tft.print("***adammakesthings.dev***");
-}
-
-void LEDCycle() {
-  // Print current LED color
-  int c = currentLED % NUM_COLORS;
-  tft.setTextColor(LEDScreenColors[c], ST7735_BLACK);
-  tft.setCursor(50, 85);
-  tft.print(LEDNames[c]);
-
-  // Toggle non-RGB LED
-  tft.setTextColor(c % 2 == 0 ? ST7735_GREEN : ST7735_RED, ST7735_BLACK);
-  tft.setCursor(60, 95);
-  tft.print(c % 2 == 0 ? "On " : "Off");
-  digitalWrite(LED_USR, !(c % 2));
-
-  pixel[0] = LEDPixelColors[c];
-  FastLED.show();
-
-  // Reset counter
-  currentLED = c + 1;
+  return digitalRead(pin) == LOW;
 }
 
 void loop() {
-  // Calculate frames/second
-  uint16_t deltaT = millis() - lastUpdate;
-  lastUpdate = millis();
-  if (millis() - lastLEDUpdate > 1000) {
-    lastLEDUpdate = millis();
-    LEDCycle();
+  unsigned long currentTime = millis();
+  bool moved = false;
+  int oldX = cursorX;
+  int oldY = cursorY;
+
+  // Handle movement (with debouncing)
+  if (currentTime - lastMoveTime > moveDelay) {
+    if (buttonPressed(BTN_W)) { // Up
+      cursorY -= MOVE_SPEED;
+      moved = true;
+    }
+    if (buttonPressed(BTN_S)) { // Down
+      cursorY += MOVE_SPEED;
+      moved = true;
+    }
+    if (buttonPressed(BTN_A)) { // Left
+      cursorX -= MOVE_SPEED;
+      moved = true;
+    }
+    if (buttonPressed(BTN_D)) { // Right
+      cursorX += MOVE_SPEED;
+      moved = true;
+    }
+
+    // Constrain to screen bounds
+    cursorX = constrain(cursorX, MIN_X, MAX_X);
+    cursorY = constrain(cursorY, MIN_Y, MAX_Y);
+
+    if (moved) {
+      lastMoveTime = currentTime;
+
+      if (isDrawing) {
+        // Draw line from old position to new position
+        tft.drawLine(oldX, oldY, cursorX, cursorY, DRAW_COLOR);
+      } else {
+        // Just erase old cursor and draw new one
+        eraseCursor();
+        drawCursor();
+      }
+    }
   }
 
-  tft.setCursor(5, 15);
-  tft.setTextColor(ST7735_MAGENTA, ST7735_BLACK);
-  tft.print(F("FPS: "));
-  tft.print(1000.0 / deltaT, 1);
+  // Handle toggle drawing mode (I button)
+  static bool lastIState = false;
+  bool currentIState = buttonPressed(BTN_I);
+  if (currentIState && !lastIState) {
+    isDrawing = !isDrawing;
+    updateLEDStatus();
+    Serial.println(isDrawing ? "Drawing ON" : "Drawing OFF");
+  }
+  lastIState = currentIState;
 
-  // D-Pad left buttons
-  buttonIndicator("W", BTN_W, 15, 40);
-  buttonIndicator("A", BTN_A, 5, 50);
-  buttonIndicator("S", BTN_S, 15, 50);
-  buttonIndicator("D", BTN_D, 25, 50);
+  // Handle clear screen (J button)
+  static bool lastJState = false;
+  bool currentJState = buttonPressed(BTN_J);
+  if (currentJState && !lastJState) {
+    tft.fillScreen(BG_COLOR);
+    tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
+    drawCursor();
+    Serial.println("Screen cleared!");
+  }
+  lastJState = currentJState;
 
-  // D-Pad right buttons
-  buttonIndicator("I", BTN_I, 50, 40);
-  buttonIndicator("J", BTN_J, 40, 50);
-  buttonIndicator("K", BTN_K, 50, 50);
-  buttonIndicator("L", BTN_L, 60, 50);
-
-  // Orph Pico onboard buttons
-  buttonIndicator("User button", BTN_USR, 5, 75);
+  // Small delay to prevent excessive loop speed
+  delay(10);
 }
