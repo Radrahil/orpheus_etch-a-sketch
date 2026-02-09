@@ -28,18 +28,31 @@
 #define LED_PIXEL p24
 
 // Drawing settings
-#define DRAW_COLOR ST7735_WHITE
-#define CURSOR_COLOR ST7735_RED
 #define BG_COLOR ST7735_BLACK
 #define DOT_SIZE 2   // Size of drawing dot (2x2 pixels)
 #define MOVE_SPEED 2 // Pixels to move per button press
+#define NUM_COLORS 8
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, DC, MOSI, SCK, RST);
 CRGB pixel[1];
 
+// Color arrays
+uint16_t drawColors[] = {ST7735_WHITE,  ST7735_RED,   ST7735_GREEN,
+                         ST7735_BLUE,   ST7735_CYAN,  ST7735_MAGENTA,
+                         ST7735_YELLOW, ST7735_ORANGE};
+
+const char *colorNames[] = {"WHITE", "RED",     "GREEN",  "BLUE",
+                            "CYAN",  "MAGENTA", "YELLOW", "ORANGE"};
+
+int currentColorIndex = 0;
+
 // Cursor position
 int cursorX = 80;
 int cursorY = 64;
+
+// Old cursor location
+int oldX = 80;
+int oldY = 64;
 
 // Drawing state
 bool isDrawing = true; // Start in drawing mode
@@ -49,21 +62,14 @@ unsigned long lastMoveTime = 0;
 unsigned long moveDelay = 50; // ms between moves
 
 // Screen bounds (adjusted for rotation 3: landscape)
-const int MIN_X = 1;
+const int MIN_X = 2;
 const int MAX_X = 158;
-const int MIN_Y = 1;
+const int MIN_Y = 2;
 const int MAX_Y = 126;
 
-void updateLEDStatus() {
-  if (isDrawing) {
-    pixel[0] = CRGB::Green;
-    digitalWrite(LED_USR, HIGH);
-  } else {
-    pixel[0] = CRGB::Red;
-    digitalWrite(LED_USR, LOW);
-  }
-  FastLED.show();
-}
+// Function declarations
+void updateLEDStatus();
+bool buttonPressed(PinName pin);
 
 void setup(void) {
   Serial.begin(9600);
@@ -95,7 +101,7 @@ void setup(void) {
 
   // Clear screen and draw border
   tft.fillScreen(BG_COLOR);
-  tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
+  tft.drawRect(0, 0, 160, 128, ST7735_CYAN);
 
   // Show initial instructions briefly
   tft.setTextColor(ST7735_GREEN);
@@ -119,23 +125,15 @@ void setup(void) {
   Serial.println(F("Ready to draw!"));
 }
 
-void drawDot(int x, int y, uint16_t color) {
-  // Draw a dot at the current position
-  if (DOT_SIZE == 1) {
-    tft.drawPixel(x, y, color);
+void updateLEDStatus() {
+  if (isDrawing) {
+    pixel[0] = CRGB::Green;
+    digitalWrite(LED_USR, HIGH);
   } else {
-    tft.fillRect(x - DOT_SIZE / 2, y - DOT_SIZE / 2, DOT_SIZE, DOT_SIZE, color);
+    pixel[0] = CRGB::Red;
+    digitalWrite(LED_USR, LOW);
   }
-}
-
-void eraseCursor() {
-  // Erase old cursor position
-  drawDot(cursorX, cursorY, BG_COLOR);
-}
-
-void drawCursor() {
-  // Draw cursor at current position
-  drawDot(cursorX, cursorY, isDrawing ? DRAW_COLOR : CURSOR_COLOR);
+  FastLED.show();
 }
 
 bool buttonPressed(PinName pin) {
@@ -149,8 +147,6 @@ bool buttonPressed(PinName pin) {
 void loop() {
   unsigned long currentTime = millis();
   bool moved = false;
-  int oldX = cursorX;
-  int oldY = cursorY;
 
   // Handle movement (with debouncing)
   if (currentTime - lastMoveTime > moveDelay) {
@@ -179,37 +175,47 @@ void loop() {
       lastMoveTime = currentTime;
 
       if (isDrawing) {
-        // Draw line from old position to new position
-        tft.drawLine(oldX, oldY, cursorX, cursorY, DRAW_COLOR);
-      } else {
-        // Just erase old cursor and draw new one
-        eraseCursor();
-        drawCursor();
+        // Draw line from old position to new position using current color
+        tft.drawLine(oldX, oldY, cursorX, cursorY,
+                     drawColors[currentColorIndex]);
       }
+
+      // Update old position for next line segment
+      oldX = cursorX;
+      oldY = cursorY;
     }
-  }
+    // Handle toggle drawing mode (I button)
+    // static keyword initializes only once
+    static bool lastIState = false;
+    bool currentIState = buttonPressed(BTN_I);
+    if (currentIState && !lastIState) {
+      isDrawing = !isDrawing;
+      updateLEDStatus();
+      Serial.println(isDrawing ? "Drawing ON" : "Drawing OFF");
+    }
+    lastIState = currentIState;
 
-  // Handle toggle drawing mode (I button)
-  static bool lastIState = false;
-  bool currentIState = buttonPressed(BTN_I);
-  if (currentIState && !lastIState) {
-    isDrawing = !isDrawing;
-    updateLEDStatus();
-    Serial.println(isDrawing ? "Drawing ON" : "Drawing OFF");
-  }
-  lastIState = currentIState;
+    // Handle clear screen (J button)
+    static bool lastJState = false;
+    bool currentJState = buttonPressed(BTN_J);
+    if (currentJState && !lastJState) {
+      tft.fillScreen(BG_COLOR);
+      tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
+      Serial.println("Screen cleared!");
+    }
+    lastJState = currentJState;
 
-  // Handle clear screen (J button)
-  static bool lastJState = false;
-  bool currentJState = buttonPressed(BTN_J);
-  if (currentJState && !lastJState) {
-    tft.fillScreen(BG_COLOR);
-    tft.drawRect(0, 0, 160, 128, ST7735_BLUE);
-    drawCursor();
-    Serial.println("Screen cleared!");
-  }
-  lastJState = currentJState;
+    // Handle color change (K button)
+    static bool lastKState = false;
+    bool currentKState = buttonPressed(BTN_K);
+    if (currentKState && !lastKState) {
+      currentColorIndex = (currentColorIndex + 1) % NUM_COLORS;
+      Serial.print("Color: ");
+      Serial.println(colorNames[currentColorIndex]);
+    }
+    lastKState = currentKState;
 
-  // Small delay to prevent excessive loop speed
-  delay(10);
+    // Small delay to prevent excessive loop speed
+    delay(10);
+  }
 }
