@@ -1,9 +1,5 @@
 # Etch-A-Sketch for the sprig, Orpheus pico edition
 
-This is the branch with a cursor.
-
-It works, but it's REALLY slow.
-
 ## Why?
 
 The sprig, Orpheus Pico edition had no actual firmware except for the [quicktest](https://github.com/adammakesthingsdev/Orpheus-Pico-Quicktest).
