@@ -13,4 +13,13 @@ I wanted to make something that I could use on it.
 - K to change drawing color
 - L for changing width of cursor
 
-Legal Notice: This is NOT associated with the actual Etch-A-Sketch or Spinmaster, please don't sue me.
+## Notes on Hardware
+
+The Orpheus Pico edition of the Sprig had minimal official documentation.
+
+To understand the hardware layout and pin mappings,
+I referenced the KiCad schematics and experimented with low-level control logic.
+
+Adam if you see this please add some more documentation, there's barely anything.
+
+Legal Notice: NOT associated with Etch-A-Sketch/Spinmaster, please don't sue me.
