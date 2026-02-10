@@ -224,14 +224,18 @@ void drawCursor() {
 
 void eraseCursor() {
   // Restore cursor area from buffer
-  for (int dy = 0; dy < CURSOR_SIZE; dy++) {
-    for (int dx = 0; dx < CURSOR_SIZE; dx++) {
-      int x = oldX - CURSOR_SIZE / 2 + dx;
-      int y = oldY - CURSOR_SIZE / 2 + dy;
-      if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
-        tft.drawPixel(x, y, screenBuffer[y][x]);
+  if (bigDot) {
+    for (int dy = 0; dy < CURSOR_SIZE; dy++) {
+      for (int dx = 0; dx < CURSOR_SIZE; dx++) {
+        int x = oldX - CURSOR_SIZE / 2 + dx;
+        int y = oldY - CURSOR_SIZE / 2 + dy;
+        if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+          tft.drawPixel(x, y, screenBuffer[y][x]);
+        }
       }
     }
+  } else {
+    tft.drawPixel(oldX, oldY, screenBuffer[oldY][oldX]);
   }
 }
 
@@ -372,10 +376,17 @@ void loop() {
   static bool lastLState = false;
   bool currentLState = buttonPressed(BTN_L);
   if (currentLState && !lastLState) {
+    if (!isDrawing)
+      eraseCursor();
     bigDot = !bigDot;
+    drawCursor();
     Serial.println(bigDot ? "Thick line" : "Thin line");
   }
   lastLState = currentLState;
+
+  if (!isDrawing) {
+    drawCursor(); // For Color/Size Changes
+  }
 
   // Small delay to prevent excessive loop speed
   delay(10);
