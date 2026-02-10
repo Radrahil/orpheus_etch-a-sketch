@@ -207,14 +207,18 @@ void refreshScreen() {
 }
 void drawCursor() {
   // Draw cursor on screen (not in buffer)
-  for (int dy = 0; dy < CURSOR_SIZE; dy++) {
-    for (int dx = 0; dx < CURSOR_SIZE; dx++) {
-      int x = cursorX - CURSOR_SIZE / 2 + dx;
-      int y = cursorY - CURSOR_SIZE / 2 + dy;
-      if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
-        tft.drawPixel(x, y, drawColors[currentColorIndex]);
+  if (bigDot) {
+    for (int dy = 0; dy < CURSOR_SIZE; dy++) {
+      for (int dx = 0; dx < CURSOR_SIZE; dx++) {
+        int x = cursorX - CURSOR_SIZE / 2 + dx;
+        int y = cursorY - CURSOR_SIZE / 2 + dy;
+        if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+          tft.drawPixel(x, y, drawColors[currentColorIndex]);
+        }
       }
     }
+  } else {
+    tft.drawPixel(cursorX, cursorY, drawColors[currentColorIndex]);
   }
 }
 
