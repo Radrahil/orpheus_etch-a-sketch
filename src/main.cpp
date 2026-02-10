@@ -210,8 +210,8 @@ void drawCursor() {
   if (bigDot) {
     for (int dy = 0; dy < CURSOR_SIZE; dy++) {
       for (int dx = 0; dx < CURSOR_SIZE; dx++) {
-        int x = cursorX - CURSOR_SIZE / 2 + dx;
-        int y = cursorY - CURSOR_SIZE / 2 + dy;
+        int x = cursorX + CURSOR_SIZE / 2 - dx;
+        int y = cursorY + CURSOR_SIZE / 2 - dy;
         if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
           tft.drawPixel(x, y, drawColors[currentColorIndex]);
         }
@@ -227,8 +227,8 @@ void eraseCursor() {
   if (bigDot) {
     for (int dy = 0; dy < CURSOR_SIZE; dy++) {
       for (int dx = 0; dx < CURSOR_SIZE; dx++) {
-        int x = oldX - CURSOR_SIZE / 2 + dx;
-        int y = oldY - CURSOR_SIZE / 2 + dy;
+        int x = oldX + CURSOR_SIZE / 2 - dx;
+        int y = oldY + CURSOR_SIZE / 2 - dy;
         if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
           tft.drawPixel(x, y, screenBuffer[y][x]);
         }
