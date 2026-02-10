@@ -190,14 +190,21 @@ void drawLineToBuffer(int x0, int y0, int x1, int y1, uint16_t color) {
 }
 
 void refreshScreen() {
-  // Draw entire buffer to screen
+  // Draw entire buffer to screen using fast bulk transfer
+  // Faster as it's one transaction compared to the prev one transaction per
+  // pixel
+  tft.startWrite();                                     // Begin SPI transaction
+  tft.setAddrWindow(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT); // Set drawing area
+
+  // Send all pixels at once
   for (int y = 0; y < SCREEN_HEIGHT; y++) {
     for (int x = 0; x < SCREEN_WIDTH; x++) {
-      tft.drawPixel(x, y, screenBuffer[y][x]);
+      tft.pushColor(screenBuffer[y][x]);
     }
   }
-}
 
+  tft.endWrite(); // End SPI transaction
+}
 void drawCursor() {
   // Draw cursor on screen (not in buffer)
   for (int dy = 0; dy < CURSOR_SIZE; dy++) {
@@ -205,7 +212,7 @@ void drawCursor() {
       int x = cursorX - CURSOR_SIZE / 2 + dx;
       int y = cursorY - CURSOR_SIZE / 2 + dy;
       if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
-        tft.drawPixel(x, y, CURSOR_COLOR);
+        tft.drawPixel(x, y, drawColors[currentColorIndex]);
       }
     }
   }
