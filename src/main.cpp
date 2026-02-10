@@ -29,7 +29,6 @@
 
 // Drawing settings
 #define BG_COLOR ST7735_BLACK
-#define DOT_SIZE 2   // Size of drawing dot (2x2 pixels)
 #define MOVE_SPEED 2 // Pixels to move per button press
 #define NUM_COLORS 8
 
@@ -56,6 +55,7 @@ int oldY = 64;
 
 // Drawing state
 bool isDrawing = true; // Start in drawing mode
+bool bigDot = false;
 
 // Button debouncing
 unsigned long lastMoveTime = 0;
@@ -114,6 +114,8 @@ void setup(void) {
   tft.print("J: Clear");
   tft.setCursor(10, 55);
   tft.print("K: Change Color");
+  tft.setCursor(10, 70);
+  tft.print("L: Thick/Thin");
 
   delay(2000);
   tft.fillScreen(BG_COLOR);
@@ -178,6 +180,15 @@ void loop() {
         // Draw line from old position to new position using current color
         tft.drawLine(oldX, oldY, cursorX, cursorY,
                      drawColors[currentColorIndex]);
+        if (bigDot) {
+          // Draw thick line by drawing parallel lines
+          tft.drawLine(oldX + 1, oldY, cursorX + 1, cursorY,
+                       drawColors[currentColorIndex]);
+          tft.drawLine(oldX, oldY + 1, cursorX, cursorY + 1,
+                       drawColors[currentColorIndex]);
+          tft.drawLine(oldX + 1, oldY + 1, cursorX + 1, cursorY + 1,
+                       drawColors[currentColorIndex]);
+        }
       }
 
       // Update old position for next line segment
@@ -214,6 +225,14 @@ void loop() {
       Serial.println(colorNames[currentColorIndex]);
     }
     lastKState = currentKState;
+
+    // Handle color change (K button)
+    static bool lastLState = false;
+    bool currentLState = buttonPressed(BTN_L);
+    if (currentLState && !lastLState) {
+      bigDot = !bigDot;
+    }
+    lastLState = currentLState;
 
     // Small delay to prevent excessive loop speed
     delay(10);
